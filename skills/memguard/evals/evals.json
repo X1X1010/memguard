@@ -1,0 +1,23 @@
+{
+  "skill_name": "memguard",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to serve Qwen with vllm on the spark but last time it took the whole box down. How do I run it so it can't use more than 70G of GPU memory, and how do I know afterwards how much it actually used?",
+      "expected_output": "Uses `memguard run --gpu 70G -- vllm serve ...` (or --total), explains exit 137 + the KILLED line, suggests a --dry-run pass to read peak usage, and recommends lowering vllm's --gpu-memory-utilization; does not propose exhausting memory.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "the machine was unresponsive for a while last night around 2am and then recovered. can you figure out what happened and whether memguard did anything",
+      "expected_output": "Runs the incident-report script or equivalent journalctl greps for KILL/level lines and kernel NVRM/OOM lines around that time, checks daemon mode (dry-run/test), and interprets the findings.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "memguard keeps killing my model loading script even though it only needs about 95G total. what should I change?",
+      "expected_output": "Explains projection/floor triggers, recommends budgeting the job or lowering its appetite first, and if tuning, points to horizon_ms/floor in /etc/memguard/memguard.conf with check-config + systemctl reload; warns not to loosen protections blindly and that root edits must be done in the user's own terminal.",
+      "files": []
+    }
+  ]
+}

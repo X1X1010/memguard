@@ -464,7 +464,7 @@ pub fn run(a: DaemonArgs) -> Result<(), String> {
     let interval = cfg.interval_ms * 1_000_000;
     let mut deadline = crate::mono_ns();
     let mut last_hz = 0u64;
-    let mut boot_delta = crate::boot_ns().wrapping_sub(crate::mono_ns());
+    let mut boot_delta = boot_minus_mono_ns();
     let mut last_level = Level::Ok;
     let mut hist = History::default();
     let mut last_rank_table_ns = 0u64;
@@ -538,8 +538,8 @@ pub fn run(a: DaemonArgs) -> Result<(), String> {
                 Err(e) => crate::error!("reload failed: {e}"),
             }
         }
-        let bd = crate::boot_ns().wrapping_sub(crate::mono_ns());
-        if bd.abs_diff(boot_delta) > 1_000_000_000 {
+        let bd = boot_minus_mono_ns();
+        if suspend_jump(boot_delta, bd) {
             crate::info!("suspend/resume detected; resetting rate windows");
             engine.reset_windows();
             boot_delta = bd;
@@ -916,6 +916,18 @@ pub fn run(a: DaemonArgs) -> Result<(), String> {
     Ok(())
 }
 
+/// CLOCK_BOOTTIME minus CLOCK_MONOTONIC as a signed value. The two reads happen a few
+/// microseconds apart, so the difference hovers around zero and may be slightly negative;
+/// unsigned wrap-around here produced false "suspend" detections every few minutes.
+fn boot_minus_mono_ns() -> i64 {
+    crate::boot_ns() as i64 - crate::mono_ns() as i64
+}
+
+/// A real suspend adds the sleep time to BOOTTIME only, shifting the difference by seconds.
+fn suspend_jump(prev: i64, now: i64) -> bool {
+    (now - prev).abs() > 1_000_000_000
+}
+
 fn exclusion_set(
     self_pid: u32,
     feed: Option<&NvmlFeed>,
@@ -932,6 +944,21 @@ fn exclusion_set(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clock_jitter_is_not_a_suspend() {
+        // reads a few microseconds apart, in either order
+        assert!(!suspend_jump(0, -5_000));
+        assert!(!suspend_jump(-5_000, 12_000));
+        assert!(!suspend_jump(123_456_789, 123_456_789 + 999_999_999));
+        // a 2 s suspend shifts BOOTTIME by 2 s
+        assert!(suspend_jump(0, 2_000_000_000));
+        let live = boot_minus_mono_ns();
+        assert!(
+            live.abs() < 1_000_000_000,
+            "no suspend expected during the test: {live}"
+        );
+    }
 
     #[test]
     fn reload_retains_cli_safety_restrictions() {

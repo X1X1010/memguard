@@ -1,0 +1,51 @@
+# memguard: memory watchdog for NVIDIA GB10 (DGX Spark) unified memory.
+# Install: packaging/install.sh (copies this file to /etc/systemd/system/).
+[Unit]
+Description=memguard - GB10 unified-memory watchdog
+Documentation=file:///usr/local/share/doc/memguard/README.md
+After=local-fs.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+ExecStart=/usr/local/sbin/memguard daemon --config /etc/memguard/memguard.conf
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=1
+WatchdogSec=10
+TimeoutStopSec=10
+
+# The watchdog must survive what it protects against.
+OOMScoreAdjust=-1000
+Nice=-15
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=10
+LimitMEMLOCK=infinity
+Environment=MALLOC_ARENA_MAX=1
+RuntimeDirectory=memguard
+RuntimeDirectoryPreserve=yes
+ConfigurationDirectory=memguard
+TasksMax=32
+
+# Hardening. Deliberately NOT set: PrivateDevices/DevicePolicy (the NVML helper needs /dev/nvidia*),
+# ProtectControlGroups (we write cgroup.kill and memory.reclaim), MemoryDenyWriteExecute and
+# SystemCallFilter (risk with the NVIDIA user-space library). /sys and /proc stay writable under
+# ProtectSystem=strict, which is all the daemon needs.
+CapabilityBoundingSet=CAP_KILL CAP_DAC_OVERRIDE CAP_SYS_PTRACE
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

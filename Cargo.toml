@@ -1,0 +1,33 @@
+[package]
+name = "memguard"
+version = "0.1.0"
+edition = "2021"
+description = "Memory watchdog for NVIDIA GB10 (DGX Spark) unified-memory systems"
+license = "MIT"
+publish = false
+
+[dependencies]
+libc = "0.2"
+
+[lib]
+name = "memguard"
+path = "src/lib.rs"
+
+[[bin]]
+name = "memguard"
+path = "src/main.rs"
+
+[[bin]]
+name = "memguard-hog"
+path = "src/bin/memguard-hog.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+
+[profile.dev]
+panic = "abort"

@@ -238,6 +238,7 @@ impl NvmlFeed {
         let mut cmd = Command::new(&self.exe);
         cmd.arg("nvml-helper")
             .arg(self.interval_ms.to_string())
+            .env_remove("NOTIFY_SOCKET")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());

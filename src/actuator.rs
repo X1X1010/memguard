@@ -220,6 +220,7 @@ pub fn stop_unit_async(unit: &str) {
             crate::sampler::drop_realtime();
             let _ = std::process::Command::new("systemctl")
                 .args(["stop", "--no-block", &unit])
+                .env_remove("NOTIFY_SOCKET")
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
@@ -231,6 +232,7 @@ pub fn stop_unit_async(unit: &str) {
 pub fn unit_active(unit: &str) -> bool {
     std::process::Command::new("systemctl")
         .args(["is-active", "--quiet", unit])
+        .env_remove("NOTIFY_SOCKET")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

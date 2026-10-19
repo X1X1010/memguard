@@ -60,7 +60,7 @@ impl VictimConfig {
             never_cgroup: cfg.never_cgroup.clone(),
             avoid_exe: cfg.avoid_exe.clone(),
             prefer_exe: cfg.prefer_exe.clone(),
-            nvml_fresh_ns: 250_000_000,
+            nvml_fresh_ns: 600_000_000,
             vmsize_proxy_base: 16 * GIB,
             only_kill_exe: cfg.only_kill_exe.clone(),
             cuda_file_rss_weight: cfg.cuda_file_rss_weight,
@@ -398,7 +398,8 @@ pub fn rank(inp: &RankInput<'_>) -> Ranking {
                 inp.now_ns,
                 !nvml_fresh && c.cuda,
             )
-            .max(0.0);
+            .max(0.0)
+            .min(inp.total as f64);
         let base = c.tree_footprint as f64 + cfg.growth_weight * c.growth;
         c.score = base * c.weight;
         if c.tier == Tier::Preferred {
@@ -408,6 +409,7 @@ pub fn rank(inp: &RankInput<'_>) -> Ranking {
 
     let mut all = cands.clone();
     all.sort_by_key(|a| std::cmp::Reverse(a.footprint));
+    let tree_by_pid: HashMap<u32, u64> = cands.iter().map(|c| (c.pid, c.tree_footprint)).collect();
 
     let mut top_immune: Option<Candidate> = None;
     let total = inp.total;
@@ -419,6 +421,20 @@ pub fn rank(inp: &RankInput<'_>) -> Ranking {
         if use_tree && c.descendants > 0 && c.footprint < cfg.tree_root_min {
             // a shell or launcher with no memory of its own must not be the kill root
             continue;
+        }
+        if use_tree && c.descendants > 0 && c.footprint.saturating_mul(10) < c.tree_footprint {
+            // An ancestor holding < 10 % of its tree while one child subtree holds >= 90 % of it
+            // is a terminal, agent or launcher wrapper around the real consumer (e.g. a tmux
+            // session running a shell running the hog). Descend: the child is ranked on its own
+            // and becomes the kill root, so the wrapper and its siblings survive.
+            let dominated = inp.table.children_of(c.pid).iter().any(|ch| {
+                tree_by_pid
+                    .get(ch)
+                    .is_some_and(|t| t.saturating_mul(10) >= c.tree_footprint.saturating_mul(9))
+            });
+            if dominated {
+                continue;
+            }
         }
         if c.tier == Tier::Immune {
             let override_ok = cfg.immune_override_pct > 0.0
@@ -728,6 +744,43 @@ mod tests {
             }
             other => panic!("unexpected plan {other:?}"),
         }
+    }
+
+    #[test]
+    fn wrapper_ancestors_descend_to_the_real_consumer() {
+        // agent (280M) -> bash (5M) -> python hog (12G, CUDA); plus an unrelated 8G node
+        let table = ProcTable::from_procs(
+            0,
+            vec![
+                proc(40, 1, "/opt/agent/codex", 280 << 20, GIB, 0, SCOPE),
+                proc(41, 40, "/usr/bin/bash", 5 << 20, 10 << 20, 0, SCOPE),
+                {
+                    let mut p = proc(42, 41, "/usr/bin/python3.12", 12 * GIB, 40 * GIB, 0, SCOPE);
+                    p.nvidia_maps = true;
+                    p
+                },
+                proc(200, 1, "/usr/bin/node", 8 * GIB, 10 * GIB, 0, SCOPE),
+            ],
+            0,
+        );
+        let nvml = NvmlSnapshot {
+            procs: vec![],
+            t_ns: 1_000_000_000,
+            valid: true,
+        };
+        let r = run(&table, &nvml, &vcfg(), &History::default());
+        assert_eq!(
+            r.cands[0].pid,
+            42,
+            "{:?}",
+            r.cands
+                .iter()
+                .map(|c| (c.pid, c.tree_footprint / GIB))
+                .collect::<Vec<_>>()
+        );
+        assert!(r.cands.iter().all(|c| c.pid != 40 && c.pid != 41));
+        let ch = choose(&r, &table, &vcfg()).unwrap();
+        assert_eq!(ch.plan, KillPlan::Tree(vec![42]));
     }
 
     #[test]

@@ -92,6 +92,30 @@ Measured idle overhead on this machine (50 ms tick, after the identity-check rev
 one core (decision loop 0.4 %, /proc scan every 2 s 0.5 %) with 6 MiB resident and locked; NVML
 helper ≈ 0.2 % and 20 MiB. In WARN/CRITICAL the scan runs every 250 ms and the helper polls every 50 ms.
 
+## Getting it onto another DGX Spark
+
+Requirements: DGX OS 7 / Ubuntu 24.04 on arm64 (any Linux ≥ 5.14 with cgroup v2, PSI and systemd works),
+the NVIDIA driver with NVML (`libnvidia-ml.so.1`). The binaries depend only on glibc; no Rust or CUDA
+toolkit is needed on the target machine.
+
+```sh
+# A. Debian package: enables and starts the service
+sudo apt install ./memguard_0.1.0_arm64.deb
+
+# B. Prebuilt tarball
+tar xzf memguard-0.1.0-aarch64.tar.gz && cd memguard-0.1.0-aarch64 && sudo ./packaging/install.sh
+
+# C. From source
+git clone <repo-url> memguard && cd memguard && cargo build --release && sudo ./packaging/install.sh
+```
+
+Afterwards run `memguard doctor` (environment checks), `memguard status`, and watch
+`journalctl -fu memguard`. The defaults are sized for the 128 GB GB10; adjust
+`/etc/memguard/memguard.conf` and `systemctl reload memguard` if needed. The daemon refuses to run next to
+systemd-oomd or earlyoom, so disable those first (or set `allow_coexist = true` knowingly). Claude Code users
+can link `skills/memguard` (or `/usr/share/memguard/skills/memguard` from the package) into `~/.claude/skills/`.
+Maintainers build the artifacts with `packaging/build-deb.sh` and `packaging/build-release.sh`.
+
 ## Usage
 
 ```

@@ -7,6 +7,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 B="$ROOT/target/release"
+[ -x "$B/memguard" ] || B="$ROOT/bin"
 MODE="${1:-user}"
 RT=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/memguard-test.XXXXXX")
 DP=""
@@ -24,7 +25,7 @@ ok()   { echo "  PASS: $*"; PASS=$((PASS+1)); }
 bad()  { echo "  FAIL: $*"; FAIL=$((FAIL+1)); }
 avail_g() { awk '/MemAvailable/{printf "%d", $2/1048576}' /proc/meminfo; }
 
-[ -x "$B/memguard" ] && [ -x "$B/memguard-hog" ] || { echo "build first: cargo build --release"; exit 1; }
+[ -x "$B/memguard" ] && [ -x "$B/memguard-hog" ] || { echo "no binaries: cargo build --release, or run from an extracted release tarball"; exit 1; }
 HOG="$RT/memguard-hog"
 cp "$B/memguard-hog" "$HOG"
 AV=$(avail_g)

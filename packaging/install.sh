@@ -11,17 +11,19 @@ for a in "$@"; do
   esac
 done
 [ "$(id -u)" = 0 ] || { echo "run as root: sudo $0 $*"; exit 1; }
-[ -x "$ROOT/target/release/memguard" ] || { echo "build first: (cd $ROOT && cargo build --release)"; exit 1; }
-[ -x "$ROOT/target/release/memguard-hog" ] || { echo "build both binaries first: cargo build --release"; exit 1; }
+# Source checkout (target/release) or extracted release tarball (bin/)
+BIN="$ROOT/target/release"
+[ -x "$BIN/memguard" ] || BIN="$ROOT/bin"
+[ -x "$BIN/memguard" ] && [ -x "$BIN/memguard-hog" ] || { echo "no binaries: run 'cargo build --release' or extract a release tarball"; exit 1; }
 # Validate before replacing an installed daemon or its unit.
 CONFIG=/etc/memguard/memguard.conf
 [ -e "$CONFIG" ] || CONFIG="$ROOT/packaging/memguard.conf"
-"$ROOT/target/release/memguard" check-config --config "$CONFIG" --quiet >/dev/null
+"$BIN/memguard" check-config --config "$CONFIG" --quiet >/dev/null
 
 install -d -m 0755 /usr/local/sbin /usr/local/bin /etc/memguard /usr/local/share/doc/memguard
-install -m 0755 "$ROOT/target/release/memguard" /usr/local/sbin/memguard.new
+install -m 0755 "$BIN/memguard" /usr/local/sbin/memguard.new
 mv -f /usr/local/sbin/memguard.new /usr/local/sbin/memguard
-install -m 0755 "$ROOT/target/release/memguard-hog" /usr/local/sbin/memguard-hog.new
+install -m 0755 "$BIN/memguard-hog" /usr/local/sbin/memguard-hog.new
 mv -f /usr/local/sbin/memguard-hog.new /usr/local/sbin/memguard-hog
 ln -sf /usr/local/sbin/memguard /usr/local/bin/memguard
 ln -sf /usr/local/sbin/memguard-hog /usr/local/bin/memguard-hog

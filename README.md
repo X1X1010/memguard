@@ -106,7 +106,7 @@ sudo apt install ./memguard_0.1.0_arm64.deb
 tar xzf memguard-0.1.0-aarch64.tar.gz && cd memguard-0.1.0-aarch64 && sudo ./packaging/install.sh
 
 # C. From source
-git clone <repo-url> memguard && cd memguard && cargo build --release && sudo ./packaging/install.sh
+git clone https://github.com/X1X1010/memguard.git && cd memguard && cargo build --release && sudo ./packaging/install.sh
 ```
 
 Afterwards run `memguard doctor` (environment checks), `memguard status`, and watch

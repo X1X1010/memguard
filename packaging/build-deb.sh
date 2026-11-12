@@ -76,6 +76,7 @@ fi
 POSTRM
 chmod 0755 "$D/DEBIAN/postinst" "$D/DEBIAN/prerm" "$D/DEBIAN/postrm"
 find "$D" -type d -exec chmod 0755 {} +
+find "$D" -type f -exec chmod go-w {} +
 chmod 0644 "$D/usr/share/doc/memguard/copyright"
 dpkg-deb --build --root-owner-group "$D" "$ROOT/dist/$PKG.deb" >/dev/null
 rm -rf "$D"
